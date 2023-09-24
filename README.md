@@ -2,6 +2,7 @@
 
 [![codecov](https://codecov.io/gh/yarlson/clicache/graph/badge.svg?token=2U3ILh24ya)](https://codecov.io/gh/yarlson/clicache)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![GitHub tag checks state](https://img.shields.io/github/checks-status/yarlson/clicache/main)
 
 `clicache` is a lightweight Go library designed to provide simple file-based caching for Command Line Interface (CLI)
 applications. By leveraging the local filesystem, it allows quick storage and retrieval of data between CLI invocations,

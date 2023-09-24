@@ -2,8 +2,6 @@ package clicache
 
 import (
 	"encoding/gob"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +9,7 @@ import (
 )
 
 func TestSet(t *testing.T) {
-	// This is a temporary cleanup utility to ensure no cache files are left after the test
+	// Cleanup utility to ensure no cache files are left after the test
 	defer func() {
 		files, _ := filepath.Glob("/tmp/" + cachePrefix + "*.gob")
 		for _, file := range files {
@@ -23,45 +21,42 @@ func TestSet(t *testing.T) {
 	data := "This is cached data."
 	ttl := 1
 
-	t.Run("SetAndValidateCacheFile", func(t *testing.T) {
-		// Set cache
-		err := Set(args, data, ttl)
-		assert.NoError(t, err, "Failed to set cache")
+	// Set cache
+	if err := Set(args, data, ttl); err != nil {
+		t.Fatalf("Failed to set cache: %v", err)
+	}
 
-		// Verify the cache file was created
-		cacheKey := generateCacheKey(args)
-		cacheFile := getCacheFileName(cacheKey)
-		_, err = os.Stat(cacheFile)
-		assert.NoError(t, err, "Cache file not created")
+	// Verify the cache file was created
+	cacheKey := generateCacheKey(args)
+	cacheFile := getCacheFileName(cacheKey)
+	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
+		t.Fatalf("Cache file not created")
+	}
 
-		// Read the file and verify contents
-		bytes, err := ioutil.ReadFile(cacheFile)
-		assert.NoError(t, err, "Failed to read cache file")
-		assert.Contains(t, string(bytes), data, "Cache file does not contain expected data")
-	})
+	// Verify expiration (TTL)
+	cachedData, found, err := Get(args)
+	if !found {
+		t.Fatal("Cache entry not found")
+	}
+	if err != nil {
+		t.Fatalf("Failed to get cache: %v", err)
+	}
+	if cachedData != data {
+		t.Fatalf("Cached data does not match: got %v, want %v", cachedData, data)
+	}
 
-	t.Run("ValidateCacheData", func(t *testing.T) {
-		// Verify expiration (TTL)
-		cachedData, found, err := Get(args)
-		assert.True(t, found, "Cache entry not found")
-		assert.NoError(t, err, "Failed to get cache")
-		assert.Equal(t, data, cachedData, "Cached data does not match")
-	})
-
-	t.Run("ValidateExpirationTime", func(t *testing.T) {
-		// Open the cache file manually and verify the expiration time
-		cacheKey := generateCacheKey(args)
-		cacheFile := getCacheFileName(cacheKey)
-		file, _ := os.Open(cacheFile)
-		defer file.Close()
-		decoder := gob.NewDecoder(file)
-		var cacheItem CacheItem
-		_ = decoder.Decode(&cacheItem)
-		assert.WithinDuration(t, cacheItem.Expiration, time.Now().Add(time.Duration(ttl)*time.Second), 1*time.Second, "Cache expiration does not match expected TTL")
-	})
+	// Open the cache file manually and verify the expiration time
+	file, _ := os.Open(cacheFile)
+	defer file.Close()
+	decoder := gob.NewDecoder(file)
+	var cacheItem CacheItem
+	if err := decoder.Decode(&cacheItem); err != nil {
+		t.Fatalf("Failed to decode cache item: %v", err)
+	}
+	if time.Now().Add(time.Duration(ttl)*time.Second).Sub(cacheItem.Expiration) > 1*time.Second {
+		t.Fatalf("Cache expiration does not match expected TTL")
+	}
 }
-
-// cache_test.go (continuation)
 
 func TestGet(t *testing.T) {
 	args := []string{"command", "arg1", "arg2"}
@@ -69,33 +64,46 @@ func TestGet(t *testing.T) {
 	ttl := 5 // 5 seconds
 
 	// Setting cache to test Get
-	err := Set(args, data, ttl)
-	assert.NoError(t, err, "Failed to set cache for Get test")
+	if err := Set(args, data, ttl); err != nil {
+		t.Fatalf("Failed to set cache for Get test: %v", err)
+	}
 
-	t.Run("GetExistingData", func(t *testing.T) {
-		cachedData, found, err := Get(args)
-		assert.True(t, found, "Cache entry not found")
-		assert.NoError(t, err, "Failed to get cache")
-		assert.Equal(t, data, cachedData, "Cached data does not match original data")
-	})
+	cachedData, found, err := Get(args)
+	if !found {
+		t.Fatal("Cache entry not found")
+	}
+	if err != nil {
+		t.Fatalf("Failed to get cache: %v", err)
+	}
+	if cachedData != data {
+		t.Fatalf("Cached data does not match original data: got %v, want %v", cachedData, data)
+	}
 
-	t.Run("GetNonExistentData", func(t *testing.T) {
-		nonExistentArgs := []string{"command", "nonexistent"}
-		_, found, err := Get(nonExistentArgs)
-		assert.False(t, found, "Cache entry should not be found")
-		assert.NoError(t, err, "There should be no error retrieving a non-existent cache entry")
-	})
+	nonExistentArgs := []string{"command", "nonexistent"}
+	_, found, err = Get(nonExistentArgs)
+	if found {
+		t.Fatal("Cache entry should not be found")
+	}
+	if err != nil {
+		t.Fatalf("There should be no error retrieving a non-existent cache entry: %v", err)
+	}
 
-	t.Run("GetDataAfterExpiration", func(t *testing.T) {
-		time.Sleep(time.Duration(ttl+1) * time.Second)
-		_, found, err := Get(args)
-		assert.False(t, found, "Cache entry should be expired and not found")
-		assert.NoError(t, err, "There should be no error retrieving an expired cache entry")
-	})
+	time.Sleep(time.Duration(ttl+1) * time.Second)
+	_, found, err = Get(args)
+	if found {
+		t.Fatal("Cache entry should be expired and not found")
+	}
+	if err != nil {
+		t.Fatalf("There should be no error retrieving an expired cache entry: %v", err)
+	}
 
 	// Cleanup after tests
 	files, _ := filepath.Glob("/tmp/" + cachePrefix + "*.gob")
 	for _, file := range files {
 		os.Remove(file)
 	}
+}
+
+func contains(haystack, needle string) bool {
+	return filepath.HasPrefix(haystack, needle)
 }

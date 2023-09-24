@@ -16,7 +16,7 @@ making it useful for operations that don't need to compute or fetch data repeate
 To install `clicache`, use `go get`:
 
 ```bash
-go get github.com/yarlson/clicache
+go get github.com/yarlson/clicache@v0.2.0
 ```
 
 ## Usage

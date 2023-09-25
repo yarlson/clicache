@@ -14,6 +14,38 @@ import (
 	"time"
 )
 
+// FileSystem is an interface for file system operations.
+//
+//go:generate moq -skip-ensure -out fs_mock_test.go -fmt goimports . FileSystem
+type FileSystem interface {
+	Create(name string) (*os.File, error)
+	Open(name string) (*os.File, error)
+	Remove(name string) error
+	IsNotExist(err error) bool
+}
+
+// OSFileSystem is an implementation of FileSystem that uses the OS file system.
+type OSFileSystem struct{}
+
+func (o OSFileSystem) Create(name string) (*os.File, error) {
+	return os.Create(name)
+}
+
+func (o OSFileSystem) Open(name string) (*os.File, error) {
+	return os.Open(name)
+}
+
+func (o OSFileSystem) Remove(name string) error {
+	return os.Remove(name)
+}
+
+func (o OSFileSystem) IsNotExist(err error) bool {
+	return os.IsNotExist(err)
+}
+
+// fs is the file system used by clicache.
+var fs FileSystem = OSFileSystem{}
+
 // CacheItem represents a cached item with its expiration time and data.
 type CacheItem struct {
 	Expiration time.Time
@@ -67,7 +99,7 @@ func Set(args []string, data interface{}, ttl int) error {
 		Data:       data,
 	}
 
-	file, err := os.Create(cacheFile)
+	file, err := fs.Create(cacheFile)
 	if err != nil {
 		return err
 	}
@@ -106,9 +138,9 @@ func Get(args []string) (interface{}, bool, error) {
 	cacheKey := generateCacheKey(args)
 	cacheFile := getCacheFileName(cacheKey)
 
-	file, err := os.Open(cacheFile)
+	file, err := fs.Open(cacheFile)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if fs.IsNotExist(err) {
 			return nil, false, nil
 		}
 		return nil, false, err
@@ -122,7 +154,7 @@ func Get(args []string) (interface{}, bool, error) {
 	gc() // Clean up expired cache entries.
 
 	if err != nil || time.Now().After(cacheItem.Expiration) {
-		os.Remove(cacheFile)
+		fs.Remove(cacheFile)
 		return nil, false, nil
 	}
 
@@ -138,7 +170,7 @@ func gc() {
 	}
 
 	for _, file := range files {
-		f, err := os.Open(file)
+		f, err := fs.Open(file)
 		if err != nil {
 			continue
 		}
@@ -149,7 +181,7 @@ func gc() {
 		f.Close()
 
 		if err != nil || time.Now().After(cacheItem.Expiration) {
-			os.Remove(file)
+			fs.Remove(file)
 		}
 	}
 }

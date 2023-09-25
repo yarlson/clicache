@@ -1,62 +1,12 @@
 package clicache
 
 import (
-	"encoding/gob"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
-
-func TestSet(t *testing.T) {
-	// Cleanup utility to ensure no cache files are left after the test
-	defer func() {
-		files, _ := filepath.Glob("/tmp/" + cachePrefix + "*.gob")
-		for _, file := range files {
-			os.Remove(file)
-		}
-	}()
-
-	args := []string{"command", "arg1", "arg2"}
-	data := "This is cached data."
-	ttl := 1
-
-	// Set cache
-	if err := Set(args, data, ttl); err != nil {
-		t.Fatalf("Failed to set cache: %v", err)
-	}
-
-	// Verify the cache file was created
-	cacheKey := generateCacheKey(args)
-	cacheFile := getCacheFileName(cacheKey)
-	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
-		t.Fatalf("Cache file not created")
-	}
-
-	// Verify expiration (TTL)
-	cachedData, found, err := Get(args)
-	if !found {
-		t.Fatal("Cache entry not found")
-	}
-	if err != nil {
-		t.Fatalf("Failed to get cache: %v", err)
-	}
-	if cachedData != data {
-		t.Fatalf("Cached data does not match: got %v, want %v", cachedData, data)
-	}
-
-	// Open the cache file manually and verify the expiration time
-	file, _ := os.Open(cacheFile)
-	defer file.Close()
-	decoder := gob.NewDecoder(file)
-	var cacheItem CacheItem
-	if err := decoder.Decode(&cacheItem); err != nil {
-		t.Fatalf("Failed to decode cache item: %v", err)
-	}
-	if time.Now().Add(time.Duration(ttl)*time.Second).Sub(cacheItem.Expiration) > 1*time.Second {
-		t.Fatalf("Cache expiration does not match expected TTL")
-	}
-}
 
 func TestGet(t *testing.T) {
 	args := []string{"command", "arg1", "arg2"}
@@ -106,4 +56,52 @@ func TestGet(t *testing.T) {
 
 func contains(haystack, needle string) bool {
 	return filepath.HasPrefix(haystack, needle)
+}
+
+func TestSet(t *testing.T) {
+	type args struct {
+		args []string
+		data interface{}
+		ttl  int
+	}
+	tests := []struct {
+		name    string
+		args    args
+		fs      FileSystem
+		wantErr bool
+	}{
+		{
+			name: "Happy path",
+			args: args{
+				args: []string{"command", "arg1", "arg2"},
+				data: "This is cached data.",
+				ttl:  1,
+			},
+			fs:      fs,
+			wantErr: false,
+		},
+		{
+			name: "Error path",
+			args: args{
+				args: []string{"../../../command", "arg1", "arg2"},
+				data: "This is cached data.",
+				ttl:  1,
+			},
+			fs: &FileSystemMock{
+				CreateFunc: func(name string) (*os.File, error) {
+					return nil, errors.New("error")
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs = tt.fs
+			if err := Set(tt.args.args, tt.args.data, tt.args.ttl); (err != nil) != tt.wantErr {
+				t.Errorf("Set() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

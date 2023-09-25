@@ -33,6 +33,8 @@ Here are the basic operations that clicache supports:
 Store data in the cache with a specific set of command arguments and a TTL (Time-to-Live) in seconds.
 
 ```go
+package main
+
 import "github.com/yarlson/clicache"
 
 func main() {
@@ -52,7 +54,12 @@ func main() {
 Retrieve data from the cache using a specific set of command arguments.
 
 ```go
-import "github.com/yarlson/cli-cache"
+package main
+
+import (
+    "fmt"
+    "github.com/yarlson/clicache"
+)
 
 func main() {
 	args := []string{"my-command", "arg1", "arg2"}
@@ -65,6 +72,50 @@ func main() {
 		// Use the data
 		fmt.Println(data)
 	}
+}
+
+```
+
+### Using the Cache Helper Function
+
+The `Cache` function provides a convenient way to get cached data based on provided CLI arguments. If the data is not found in the cache, the function defined in the handler is executed and its result is then cached with the specified TTL.
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/yarlson/clicache"
+)
+
+func main() {
+	out, err := clicache.Cache(func() (string, error) {
+		// This function is only executed if the data is not in the cache.
+		return "This is data.", nil
+	})
+
+	if err != nil {
+		// Handle error
+	}
+	fmt.Println(out)  // This will print "This is data."
+}
+```
+
+### Setting Default TTL for Cache Entries
+
+You can set a default Time-to-Live (TTL) in seconds for cache entries using the `SetTTL` function. This TTL value will be applied to all subsequent cache entries unless specifically overridden during the cache set operation.
+
+```go
+package main
+
+import "github.com/yarlson/clicache"
+
+func main() {
+    // Set the default TTL to 1 minute
+    clicache.SetTTL(60)
+
+    // Other operations using clicache can follow
+    // ...
 }
 
 ```

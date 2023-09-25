@@ -81,7 +81,7 @@ func TestSet(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Error path",
+			name: "Cannot create cache file",
 			args: args{
 				args: []string{"../../../command", "arg1", "arg2"},
 				data: "This is cached data.",
@@ -94,6 +94,27 @@ func TestSet(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: " IsNotExist error",
+			args: args{
+				args: []string{"command", "arg1", "arg2"},
+				data: "This is cached data.",
+				ttl:  1,
+			},
+			fs: &FileSystemMock{
+				CreateFunc: func(name string) (*os.File, error) {
+					f, _ := os.Create(getCacheFileName(name))
+					return f, nil
+				},
+				OpenFunc: func(name string) (*os.File, error) {
+					return nil, errors.New("error")
+				},
+				IsNotExistFunc: func(err error) bool {
+					return false
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -101,6 +122,31 @@ func TestSet(t *testing.T) {
 			fs = tt.fs
 			if err := Set(tt.args.args, tt.args.data, tt.args.ttl); (err != nil) != tt.wantErr {
 				t.Errorf("Set() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestSetTTL(t *testing.T) {
+	type args struct {
+		ttl int
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "Happy path",
+			args: args{
+				ttl: 1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			SetTTL(tt.args.ttl)
+			if cacheTTL != tt.args.ttl {
+				t.Errorf("SetTTL() = %v, want %v", cacheTTL, tt.args.ttl)
 			}
 		})
 	}

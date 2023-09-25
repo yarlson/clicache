@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,7 +56,19 @@ type CacheItem struct {
 var (
 	cacheMutex  sync.Mutex
 	cachePrefix = "cli_cache_"
+	cacheTTL    = 300
 )
+
+// SetTTL sets the default TTL for cache entries.
+//
+// ttl: Time to live in seconds for the cache entry.
+//
+// Example:
+//
+//	clicache.SetTTL(60)  // 1 minute
+func SetTTL(ttl int) {
+	cacheTTL = ttl
+}
 
 // generateCacheKey produces a unique cache key based on the provided CLI arguments.
 // This ensures that different command invocations have distinct cache entries.
@@ -68,6 +81,41 @@ func generateCacheKey(args []string) string {
 // getCacheFileName constructs the cache file name for the given cache key.
 func getCacheFileName(cacheKey string) string {
 	return filepath.Join("/tmp", cachePrefix+fmt.Sprintf("%s.gob", cacheKey))
+}
+
+// Cache is a helper function that retrieves the cached data associated with the provided CLI arguments.
+// If the cache entry is not found, the provided handler function is executed and its output is cached.
+// The data will expire after the specified TTL (in seconds).
+//
+// handler: Function that returns the data to be cached.
+//
+// Returns the cached data and an error if the operation fails.
+//
+// Example:
+//
+//	out, err := clicache.Cache(func() (string, error) {
+//	  return "This is data.", nil
+//	})
+func Cache(handler func() (string, error)) (string, error) {
+	cached, isCached, err := Get(flag.Args())
+	if err != nil {
+		return "", err
+	}
+	if isCached {
+		return cached.(string), nil
+	}
+
+	out, err := handler()
+	if err != nil {
+		return "", err
+	}
+
+	err = Set(flag.Args(), out, cacheTTL)
+	if err != nil {
+		return "", err
+	}
+
+	return out, nil
 }
 
 // Set stores the given data in the cache, associated with the provided CLI arguments.

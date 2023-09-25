@@ -120,9 +120,9 @@ func main() {
 
 ```
 
-### Cache Garbage Collection
+### Clearing All Cache Entries
 
-The `GC` function allows for manual cleanup of the cache directory by scanning for and removing expired cache entries. This ensures that the cache stays efficient and doesn't accumulate outdated data.
+The `Cleanup` function provides a way to completely clear all cache entries, irrespective of their expiration status. This is useful when you want to ensure a fresh state for the cache.
 
 ```go
 package main
@@ -130,8 +130,8 @@ package main
 import "github.com/yarlson/clicache"
 
 func main() {
-    // Perform garbage collection to remove outdated cache entries
-    clicache.GC()
+    // Remove all cache entries
+    clicache.Cleanup()
 
     // Other operations using clicache can follow
     // ...

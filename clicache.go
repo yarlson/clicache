@@ -156,7 +156,7 @@ func Set(args []string, data interface{}, ttl int) error {
 	encoder := gob.NewEncoder(file)
 	err = encoder.Encode(&cacheItem)
 
-	gc() // Clean up expired cache entries.
+	GC() // Clean up expired cache entries.
 
 	return err
 }
@@ -199,7 +199,7 @@ func Get(args []string) (interface{}, bool, error) {
 	var cacheItem CacheItem
 	err = decoder.Decode(&cacheItem)
 
-	gc() // Clean up expired cache entries.
+	GC() // Clean up expired cache entries.
 
 	if err != nil || time.Now().After(cacheItem.Expiration) {
 		fs.Remove(cacheFile)
@@ -209,9 +209,13 @@ func Get(args []string) (interface{}, bool, error) {
 	return cacheItem.Data, true, nil
 }
 
-// gc scans the cache directory and removes outdated cache entries.
+// GC scans the cache directory and removes outdated cache entries.
 // This ensures the cache stays lean and doesn't hoard expired data.
-func gc() {
+//
+// Example:
+//
+//	clicache.GC()
+func GC() {
 	files, err := filepath.Glob("/tmp/" + cachePrefix + "*.gob")
 	if err != nil {
 		return

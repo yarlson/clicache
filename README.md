@@ -120,6 +120,25 @@ func main() {
 
 ```
 
+### Cache Garbage Collection
+
+The `GC` function allows for manual cleanup of the cache directory by scanning for and removing expired cache entries. This ensures that the cache stays efficient and doesn't accumulate outdated data.
+
+```go
+package main
+
+import "github.com/yarlson/clicache"
+
+func main() {
+    // Perform garbage collection to remove outdated cache entries
+    clicache.GC()
+
+    // Other operations using clicache can follow
+    // ...
+}
+
+```
+
 ## Contributions
 
 Contributions to clicache are welcome! Feel free to open issues or submit pull requests.

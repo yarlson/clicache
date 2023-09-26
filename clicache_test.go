@@ -11,7 +11,7 @@ import (
 func TestGet(t *testing.T) {
 	args := []string{"command", "arg1", "arg2"}
 	data := "This is cached data."
-	ttl := 5 // 5 seconds
+	ttl := 2 // 2 seconds
 
 	// Setting cache to test Get
 	if err := Set(args, data, ttl); err != nil {
@@ -54,10 +54,6 @@ func TestGet(t *testing.T) {
 	}
 }
 
-func contains(haystack, needle string) bool {
-	return filepath.HasPrefix(haystack, needle)
-}
-
 func TestSet(t *testing.T) {
 	type args struct {
 		args []string
@@ -83,7 +79,7 @@ func TestSet(t *testing.T) {
 		{
 			name: "Cannot create cache file",
 			args: args{
-				args: []string{"../../../command", "arg1", "arg2"},
+				args: []string{"command", "arg1", "arg2"},
 				data: "This is cached data.",
 				ttl:  1,
 			},
@@ -95,7 +91,7 @@ func TestSet(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: " IsNotExist error",
+			name: "IsNotExist error",
 			args: args{
 				args: []string{"command", "arg1", "arg2"},
 				data: "This is cached data.",
@@ -147,6 +143,29 @@ func TestSetTTL(t *testing.T) {
 			SetTTL(tt.args.ttl)
 			if cacheTTL != tt.args.ttl {
 				t.Errorf("SetTTL() = %v, want %v", cacheTTL, tt.args.ttl)
+			}
+		})
+	}
+}
+
+func TestCleanup(t *testing.T) {
+	tests := []struct {
+		name string
+	}{
+		{
+			name: "Happy path",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs = OSFileSystem{}
+			err := Set([]string{"command", "arg1", "arg2"}, "test", 10)
+			if err != nil {
+				t.Errorf("Failed to create test cache file: %v", err)
+			}
+			Cleanup()
+			if _, err := os.Stat(cacheFolder + cachePrefix + "test.gob"); err != nil && !os.IsNotExist(err) {
+				t.Errorf("Failed to cleanup cache file: %v", err)
 			}
 		})
 	}

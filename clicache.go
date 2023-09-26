@@ -57,6 +57,7 @@ var (
 	cacheMutex  sync.Mutex
 	cachePrefix = "cli_cache_"
 	cacheTTL    = 300
+	cacheFolder = "/tmp/"
 )
 
 // SetTTL sets the default TTL for cache entries.
@@ -80,7 +81,7 @@ func generateCacheKey(args []string) string {
 
 // getCacheFileName constructs the cache file name for the given cache key.
 func getCacheFileName(cacheKey string) string {
-	return filepath.Join("/tmp", cachePrefix+fmt.Sprintf("%s.gob", cacheKey))
+	return filepath.Join(cacheFolder, cachePrefix+fmt.Sprintf("%s.gob", cacheKey))
 }
 
 // Cache is a helper function that retrieves the cached data associated with the provided CLI arguments.
@@ -155,10 +156,13 @@ func Set(args []string, data interface{}, ttl int) error {
 
 	encoder := gob.NewEncoder(file)
 	err = encoder.Encode(&cacheItem)
+	if err != nil {
+		return err
+	}
 
 	gc() // Clean up expired cache entries.
 
-	return err
+	return nil
 }
 
 // Get retrieves the cached data associated with the provided CLI arguments.
@@ -202,7 +206,7 @@ func Get(args []string) (interface{}, bool, error) {
 	gc() // Clean up expired cache entries.
 
 	if err != nil || time.Now().After(cacheItem.Expiration) {
-		fs.Remove(cacheFile)
+		_ = fs.Remove(cacheFile)
 		return nil, false, nil
 	}
 
@@ -212,7 +216,7 @@ func Get(args []string) (interface{}, bool, error) {
 // gc scans the cache directory and removes outdated cache entries.
 // This ensures the cache stays lean and doesn't hoard expired data.
 func gc() {
-	files, err := filepath.Glob("/tmp/" + cachePrefix + "*.gob")
+	files, err := filepath.Glob(cacheFolder + cachePrefix + "*.gob")
 	if err != nil {
 		return
 	}
@@ -226,10 +230,10 @@ func gc() {
 		decoder := gob.NewDecoder(f)
 		var cacheItem CacheItem
 		err = decoder.Decode(&cacheItem)
-		f.Close()
+		_ = f.Close()
 
 		if err != nil || time.Now().After(cacheItem.Expiration) {
-			fs.Remove(file)
+			_ = fs.Remove(file)
 		}
 	}
 }
@@ -240,7 +244,10 @@ func gc() {
 //
 //	clicache.Cleanup()
 func Cleanup() {
-	files, err := filepath.Glob("/tmp/" + cachePrefix + "*.gob")
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
+	files, err := filepath.Glob(cacheFolder + cachePrefix + "*.gob")
 	if err != nil {
 		return
 	}
@@ -251,6 +258,6 @@ func Cleanup() {
 			continue
 		}
 
-		fs.Remove(file)
+		_ = fs.Remove(file)
 	}
 }
